@@ -1,0 +1,17 @@
+# Base
+numpy==1.26.4
+tqdm
+
+# Visão computacional
+opencv-python==4.9.0.80
+mediapipe==0.10.14
+
+# Deep Learning (CPU)
+torch==2.2.2
+ultralytics==8.3.34
+
+# Face analysis / ONNX
+insightface==0.7.3
+onnxruntime==1.17.1
+onnx==1.15.0
+ml_dtypes==0.3.2
