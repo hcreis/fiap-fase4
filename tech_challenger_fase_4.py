@@ -1,3 +1,6 @@
+import matplotlib.pyplot as plt
+from deepface import DeepFace
+
 import os
 import cv2
 import numpy as np
@@ -9,9 +12,6 @@ from ultralytics import YOLO
 import mediapipe as mp
 
 mp_drawing = mp.solutions.drawing_utils
-
-import matplotlib.pyplot as plt
-from deepface import DeepFace
 
 # ======================================================
 # CONFIGURAÇÕES GERAIS
