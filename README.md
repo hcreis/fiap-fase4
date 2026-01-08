@@ -74,3 +74,8 @@ No topo de `tech_challenger_fase_4.py` há várias constantes que você pode ada
 - Erro relacionado a `yolo11n-pose.pt` → coloque o arquivo correto na raiz ou altere para um checkpoint disponível.
 - Lentidão / uso alto de CPU → o pipeline roda em CPU (intencional). Para acelerar, use máquinas com CPU mais rápida ou GPU e adapte os providers do ONNX/InsightFace (requer drivers CUDA e builds compatíveis).
 - Projeto testado e valido com CPU.
+
+## 👥 Membros
+
+- Helen de Cassia dos Reis Cruz | RM364533
+- Leandro Bernardo dos Santos | RM364501
