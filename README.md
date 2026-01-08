@@ -8,6 +8,7 @@
 
 - **Python 3.11** (OBRIGATÓRIO)
 - Sistema operacional: Linux (testado) — outras plataformas podem funcionar, ajustes de dependências podem ser necessários
+- **TensorFlow** (necessário para `deepface` — instale `tensorflow` ou `tensorflow-cpu` conforme disponível)
 - Espaço para modelos e vídeo de entrada
 
 ## 📦 Instalação
@@ -32,17 +33,14 @@ pip install -r requirements.txt
 
 - `tech_challenger_fase_4.py` — script principal
 - `requirements.txt` — dependências do projeto
-- `emotion-ferplus-8.onnx` — modelo ONNX de emoções (já incluído)
-- `yolo11n-pose.pt` — modelo YOLO de pose (deve estar no diretório do projeto) *ver seção abaixo*
+- `yolo11n-pose.pt` — modelo YOLO de pose (deve estar no diretório do projeto)
 - `video_tech_challenger_fase_4.mp4` — vídeo de entrada (coloque no diretório do projeto)
+- `blaze_face_short_range.tflite` — arquivo TFLite incluído no repositório
 
 ## 📥 Modelos necessários
 
-- `emotion-ferplus-8.onnx` — presente no repositório.
-- `yolo11n-pose.pt` — **não está** neste repositório (arquivo referido em `tech_challenger_fase_4.py`). Você tem duas opções:
-  - Colocar o arquivo `yolo11n-pose.pt` na raiz do projeto (mesmo diretório do script).
-  - Substituir por outro checkpoint de pose compatível (ex.: `yolov8n-pose.pt`) e atualizar a variável no código:
-
+- - Emoções: o script usa `DeepFace.analyze` (backend TensorFlow) para estimar emoções.
+- `yolo11n-pose.pt` — modelo de pose usado pelo script; o arquivo `yolo11n-pose.pt` está incluído no repositório atual.
 - O InsightFace (`buffalo_l`) é carregado automaticamente pela biblioteca InsightFace (será feito download quando necessário, se houver internet).
 
 ## ▶️ Como executar
@@ -59,7 +57,7 @@ O script irá gerar no mesmo diretório:
 
 - `video_tech_challenger_fase_4_final.mp4` — vídeo anotado
 - `relatorio_final_tecnico.txt` — relatório técnico
-- `relatorio_final_academico.txt` — relatório em linguagem acadêmica
+- `grafico_emocoes.png` — gráfico com a distribuição de emoções (se houver detecções)
 
 ## ⚙️ Configurações úteis
 

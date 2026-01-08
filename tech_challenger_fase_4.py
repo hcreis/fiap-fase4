@@ -9,7 +9,9 @@ from ultralytics import YOLO
 import mediapipe as mp
 
 mp_drawing = mp.solutions.drawing_utils
-import onnxruntime as ort
+
+import matplotlib.pyplot as plt
+from deepface import DeepFace
 
 # ======================================================
 # CONFIGURAÇÕES GERAIS
@@ -26,7 +28,7 @@ COR_CAIXA = (0, 255, 0)
 EMOCOES_NEGATIVAS = {"sad", "angry", "fear", "disgust"}
 
 # Identidade facial temporal (mais rígido -> menos "parecidos" viram a mesma pessoa)
-LIMIAR_SIMILARIDADE_FACE = 0.60  # era 0.55; aumente para ficar mais rígido (0.60~0.65)
+LIMIAR_SIMILARIDADE_FACE = 0.35  # era 0.55; aumente para ficar mais rígido (0.60~0.65)
 MIN_FRAMES_PARA_CONFIRMAR = 360  # exige consistência antes de "fixar" embedding
 MAX_FRAMES_SEM_MATCH = 20
 
@@ -43,7 +45,7 @@ MAX_HISTORICO_ACENO = 15
 MIN_FRAMES_APERTO_MAO = 1  # precisa ocorrer por ~0.4s para contar como evento
 DISTANCIA_APERTO_MAO_PX = 16
 
-# Anomalia de movimento (simples e defensável)
+# Anomalia de movimento
 # Detecta "picos" de velocidade de punhos/torso muito acima do padrão por personagem
 JANELA_VELOCIDADE = 10
 Z_SCORE_ANOMALIA = 3.0
@@ -100,23 +102,17 @@ EMOCOES = [
     "contempt",
 ]
 
-
-def iniciar_modelo_emocao():
-    base_dir = os.path.dirname(os.path.abspath(__file__))
-    modelo_onnx = os.path.join(base_dir, "emotion-ferplus-8.onnx")
-
-    sess = ort.InferenceSession(modelo_onnx, providers=["CPUExecutionProvider"])
-    input_name = sess.get_inputs()[0].name
-    return sess, input_name
-
-
-def classificar_emocao_onnx(sess, input_name, face_bgr):
-    face = cv2.cvtColor(face_bgr, cv2.COLOR_BGR2GRAY)
-    face = cv2.resize(face, (64, 64))
-    face = face.astype(np.float32) / 255.0
-    face = face.reshape(1, 1, 64, 64)
-    preds = sess.run(None, {input_name: face})[0][0]
-    return EMOCOES[int(np.argmax(preds))]
+def classificar_emocao_deepface(face_bgr):
+    try:
+        res = DeepFace.analyze(
+            face_bgr,
+            actions=["emotion"],
+            enforce_detection=False,
+            detector_backend="skip"
+        )
+        return res[0]["dominant_emotion"]
+    except Exception:
+        return "neutral"
 
 
 # ======================================================
@@ -404,7 +400,6 @@ def processar_video(caminho_video, caminho_saida_video):
     )
 
     app_face = iniciar_insightface()
-    sess_emocao, input_emocao = iniciar_modelo_emocao()
     id_pose = 0
 
     for frame_idx in tqdm(range(total), desc="Processando vídeo"):
@@ -500,7 +495,7 @@ def processar_video(caminho_video, caminho_saida_video):
                 continue
 
             try:
-                emo = classificar_emocao_onnx(sess_emocao, input_emocao, roi)
+                emo = classificar_emocao_deepface(roi)
 
                 estatisticas["emocoes"][emo] += 1
                 if cena_atual:
@@ -705,161 +700,94 @@ def processar_video(caminho_video, caminho_saida_video):
 # ======================================================
 def escrever_relatorio_tecnico(caminho, fps=30):
     with open(caminho, "w", encoding="utf-8") as f:
-        f.write("RELATÓRIO TÉCNICO – ANÁLISE DE CENAS\n\n")
+        f.write("RELATÓRIO TÉCNICO – ANÁLISE GLOBAL DO VÍDEO\n\n")
 
-        for i, c in enumerate(cenas, 1):
-            duracao_s = c["frames"] / fps if fps else 0
+        # ======================================================
+        # DURAÇÃO TOTAL
+        # ======================================================
+        total_frames = estatisticas["frames"]
+        duracao_s = total_frames / fps if fps else 0
 
-            f.write(f"Cena {i} – Personagem dominante: {c['personagem']}\n")
-            f.write(f"Duração aproximada: {duracao_s:.1f}s\n")
+        f.write(f"Duração total analisada: {duracao_s:.1f}s\n")
+        f.write(f"Total de frames processados: {total_frames}\n\n")
 
-            # ===============================
-            # ATIVIDADE CORPORAL (RESUMIDA)
-            # ===============================
-            if c["atividades"]:
-                atividade_pred, qtd = c["atividades"].most_common(1)[0]
-                f.write(f"Atividade predominante: {atividade_pred}\n")
+        # ======================================================
+        # ATIVIDADES (PERCENTUAL POR FRAME)
+        # ======================================================
+        f.write("Atividade corporal (percentual do tempo):\n")
+        if estatisticas["atividades"]:
+            total_atividades = sum(estatisticas["atividades"].values())
 
-                if len(c["atividades"]) > 1:
-                    secundarias = [
-                        k for k, _ in c["atividades"].most_common()[1:]
-                    ]
-                    f.write(
-                        "Variação postural observada: "
-                        + ", ".join(secundarias)
-                        + "\n"
-                    )
+            for k, v in estatisticas["atividades"].most_common():
+                perc = (v / total_atividades) * 100
+                f.write(f"  - {k}: {perc:.1f}%\n")
+        f.write("\n")
 
-            # ===============================
-            # EMOÇÃO (RESUMIDA)
-            # ===============================
-            if c["emocoes"]:
-                emocao_pred, qtd = c["emocoes"].most_common(1)[0]
-                f.write(f"Estado emocional predominante: {emocao_pred.capitalize()}\n")
+        # ======================================================
+        # EMOÇÕES (PERCENTUAL POR FACE ANALISADA)
+        # ======================================================
+        f.write("Estado emocional (percentual de ocorrência):\n")
+        if estatisticas["emocoes"]:
+            total_emocoes = sum(estatisticas["emocoes"].values())
 
-            # ===============================
-            # EVENTOS
-            # ===============================
-            if c["eventos"]:
-                eventos_desc = ", ".join(
-                    f"{k} ({v})" for k, v in c["eventos"].most_common()
-                )
-                f.write(f"Eventos relevantes detectados: {eventos_desc}\n")
-
-            # ===============================
-            # ANOMALIAS
-            # ===============================
-            if c["anomalias_emocao"] == 0 and c["anomalias_movimento"] == 0:
-                f.write("Anomalias comportamentais: Nenhuma\n")
-            else:
-                f.write(
-                    f"Anomalias emocionais: {c['anomalias_emocao']} | "
-                    f"Anomalias de movimento: {c['anomalias_movimento']}\n"
-                )
-
-            f.write("\n")
-
-def escrever_relatorio_academico(caminho, fps):
-    """
-    Linguagem mais próxima de artigo: descreve método e apresenta resultados.
-    """
-    duracao_s = (estatisticas["frames"] / fps) if fps else 0.0
-
-    # resumo do que foi mais frequente
-    atividades_top = estatisticas["atividades"].most_common(3)
-    emocoes_top = estatisticas["emocoes"].most_common(3)
-    eventos_top = estatisticas["eventos"].most_common(3)
-
-    with open(caminho, "w", encoding="utf-8") as f:
-        f.write(
-            "RELATÓRIO ACADÊMICO - ANÁLISE DE VÍDEO BASEADA EM VISÃO COMPUTACIONAL\n\n"
-        )
-
-        f.write("1. Objetivo\n")
-        f.write(
-            "Este relatório apresenta os resultados de um pipeline automatizado de visão computacional "
-            "para (i) detecção e marcação de faces, (ii) análise de expressões emocionais, "
-            "(iii) categorização de atividades com estimativa de pose e (iv) identificação de anomalias.\n\n"
-        )
-
-        f.write("2. Materiais e Métodos\n")
-        f.write(
-            "- Detecção/representação facial: InsightFace (modelo 'buffalo_l') com resolução de identidade online.\n"
-            "- Emoções faciais: modelo ONNX de emoções (inferência por recorte de face; emoção dominante por face).\n"
-            "- Atividades corporais: YOLO Pose (keypoints) com heurísticas para 'EM_PE', 'SENTADO', 'ACENO' e 'APERTO_DE_MAO'.\n"
-            "- Segmentação em cenas: agrupamento por personagem dominante com consistência temporal (histerese e janela mínima).\n"
-            "- Anomalias: (a) persistência de emoções negativas por janela e (b) picos de velocidade (z-score) em keypoints.\n\n"
-        )
-
-        f.write("3. Resultados\n")
-        f.write(
-            f"Foram analisados {estatisticas['frames']} frames (~{duracao_s:.1f} s a {fps} fps).\n\n"
-        )
-
-        f.write("3.1 Atividades predominantes\n")
-        if atividades_top:
-            f.write(
-                "As atividades mais frequentes, computadas por ocorrência ao longo dos frames, foram: "
-                + ", ".join([f"{k} (n={v})" for k, v in atividades_top])
-                + ".\n\n"
-            )
+            for k, v in estatisticas["emocoes"].most_common():
+                perc = (v / total_emocoes) * 100
+                f.write(f"  - {k.capitalize()}: {perc:.1f}%\n")
         else:
-            f.write(
-                "Não foram observadas atividades predominantes com confiança suficiente.\n\n"
-            )
+            f.write("  - Não determinado\n")
 
-        f.write("3.2 Emoções predominantes\n")
-        if emocoes_top:
-            f.write(
-                "As emoções mais recorrentes, estimadas por face analisada, foram: "
-                + ", ".join([f"{k} (n={v})" for k, v in emocoes_top])
-                + ".\n\n"
-            )
+        f.write("\n")
+
+        # ======================================================
+        # EVENTOS
+        # ======================================================
+        f.write("Eventos relevantes detectados:\n")
+        if estatisticas["eventos"]:
+            for k, v in estatisticas["eventos"].most_common():
+                f.write(f"  - {k}: {v}\n")
         else:
-            f.write("Não foi possível consolidar emoções predominantes.\n\n")
+            f.write("  - Nenhum\n")
 
-        f.write("3.3 Eventos sociais (confirmados por janela temporal)\n")
-        if eventos_top:
-            f.write(
-                "Foram identificados eventos discretos com confirmação temporal, incluindo: "
-                + ", ".join([f"{k} (n={v})" for k, v in eventos_top])
-                + ".\n\n"
-            )
-        else:
-            f.write(
-                "Não foram identificados eventos sociais com confirmação temporal.\n\n"
-            )
+        f.write("\n")
 
-        f.write("3.4 Segmentação em cenas\n")
-        f.write(
-            f"A análise foi organizada em {len(cenas)} cenas, definidas como intervalos em que um personagem "
-            "permanece dominante por uma janela mínima, reduzindo fragmentação causada por oscilações momentâneas.\n\n"
-        )
+        # ======================================================
+        # ANOMALIAS
+        # ======================================================
+        f.write("Anomalias detectadas:\n")
+        f.write(f"  - Emoção: {estatisticas['anomalias_emocao']}\n")
+        f.write(f"  - Movimento: {estatisticas['anomalias_movimento']}\n")
 
-        f.write("3.5 Anomalias\n")
-        f.write(
-            f"Foram registradas {estatisticas['anomalias_emocao']} anomalias associadas a persistência de emoções negativas "
-            f"e {estatisticas['anomalias_movimento']} anomalias relacionadas a picos de movimento.\n\n"
-        )
+def gerar_grafico_emocoes(caminho_saida):
+    if not estatisticas["emocoes"]:
+        return
 
-        f.write("4. Discussão e Limitações\n")
-        f.write(
-            "A abordagem baseada em heurísticas (ex.: aceno e aperto de mão) depende da qualidade dos keypoints e pode gerar "
-            "falsos positivos em situações de oclusão, proximidade entre indivíduos e variações de perspectiva. "
-            "A segmentação temporal por personagem dominante, com janela mínima, melhora a legibilidade do relatório, "
-            "mas não substitui um algoritmo completo de tracking multiobjeto.\n\n"
-        )
+    labels = []
+    sizes = []
 
-        f.write("5. Conclusão\n")
-        f.write(
-            "O pipeline implementado integra detecção facial, análise emocional e reconhecimento de atividades a partir de pose, "
-            "produzindo um relatório consolidado por cenas e métricas globais, além de sinalização de anomalias comportamentais.\n"
-        )
+    total = sum(estatisticas["emocoes"].values())
 
+    for emo, count in estatisticas["emocoes"].most_common():
+        labels.append(emo.capitalize())
+        sizes.append((count / total) * 100)
+
+    plt.figure(figsize=(6, 6))
+    plt.pie(
+        sizes,
+        labels=labels,
+        autopct="%1.1f%%",
+        startangle=90
+    )
+    plt.title("Distribuição Global de Emoções")
+    plt.axis("equal")
+
+    plt.tight_layout()
+    plt.savefig(caminho_saida)
+    plt.close()
 
 # ======================================================
 # MAIN
 # ======================================================
+
 def main():
     base_dir = os.path.dirname(os.path.abspath(__file__))
 
@@ -867,6 +795,12 @@ def main():
     caminho_video_saida = os.path.join(
         base_dir, "video_tech_challenger_fase_4_final.mp4"
     )
+
+    # Verifica se vídeo de entrada existe
+    if not os.path.exists(caminho_video_entrada):
+        print(f"Arquivo de entrada não encontrado: {caminho_video_entrada}")
+        print("Coloque o vídeo na raiz do projeto ou edite o caminho no script.")
+        return
 
     # Captura FPS real para relatório
     cap_tmp = cv2.VideoCapture(caminho_video_entrada)
@@ -876,16 +810,17 @@ def main():
     processar_video(caminho_video_entrada, caminho_video_saida)
 
     relatorio_tecnico = os.path.join(base_dir, "relatorio_final_tecnico.txt")
-    relatorio_academico = os.path.join(base_dir, "relatorio_final_academico.txt")
 
-    escrever_relatorio_tecnico(relatorio_tecnico)
-    escrever_relatorio_academico(relatorio_academico, fps)
+    # Passa o FPS real para o relatório técnico
+    escrever_relatorio_tecnico(relatorio_tecnico, fps=fps)
+
+    grafico_path = os.path.join(base_dir, "grafico_emocoes.png")
+    gerar_grafico_emocoes(grafico_path)
 
     print("\nArquivos gerados:")
     print(f"- Vídeo anotado: {caminho_video_saida}")
     print(f"- Relatório técnico: {relatorio_tecnico}")
-    print(f"- Relatório acadêmico: {relatorio_academico}")
-
+    print(f"- Gráfico de emoções: {grafico_path}")
 
 if __name__ == "__main__":
     main()

@@ -1,72 +1,24 @@
-RELATÓRIO TÉCNICO – ANÁLISE DE CENAS
+RELATÓRIO TÉCNICO – ANÁLISE GLOBAL DO VÍDEO
 
-Cena 1 – Personagem dominante: PERSON_3
-Duração aproximada: 10.0s
-Estado emocional predominante: Neutral
-Eventos relevantes detectados: APERTO_DE_MAO (1)
-Anomalias comportamentais: Nenhuma
+Duração total analisada: 110.9s
+Total de frames processados: 3326
 
-Cena 2 – Personagem dominante: PERSON_5
-Duração aproximada: 18.0s
-Estado emocional predominante: Neutral
-Eventos relevantes detectados: Nenhum
-Anomalias comportamentais: Nenhuma
+Atividade corporal (percentual do tempo):
+  - SENTADO: 90.6%
+  - EM_PE: 9.4%
 
-Cena 3 – Personagem dominante: PERSON_29
-Duração aproximada: 6.0s
-Estado emocional predominante: Neutral
-Eventos relevantes detectados: APERTO_DE_MAO (15)
-Anomalias comportamentais: Nenhuma
+Estado emocional (percentual de ocorrência):
+  - Neutral: 22.7%
+  - Sad: 22.1%
+  - Fear: 21.3%
+  - Happy: 18.2%
+  - Angry: 9.8%
+  - Surprise: 5.8%
+  - Disgust: 0.1%
 
-Cena 4 – Personagem dominante: PERSON_30
-Duração aproximada: 6.0s
-Estado emocional predominante: Neutral
-Eventos relevantes detectados: APERTO_DE_MAO (3)
-Anomalias comportamentais: Nenhuma
+Eventos relevantes detectados:
+  - APERTO_DE_MAO: 27
 
-Cena 5 – Personagem dominante: PERSON_31
-Duração aproximada: 6.0s
-Estado emocional predominante: Neutral
-Eventos relevantes detectados: APERTO_DE_MAO (1)
-Anomalias comportamentais: Nenhuma
-
-Cena 6 – Personagem dominante: PERSON_32
-Duração aproximada: 6.0s
-Estado emocional predominante: Neutral
-Eventos relevantes detectados: Nenhum
-Anomalias comportamentais: Nenhuma
-
-Cena 7 – Personagem dominante: PERSON_30
-Duração aproximada: 9.0s
-Estado emocional predominante: Neutral
-Eventos relevantes detectados: Nenhum
-Anomalias comportamentais: Nenhuma
-
-Cena 8 – Personagem dominante: PERSON_34
-Duração aproximada: 4.0s
-Estado emocional predominante: Neutral
-Eventos relevantes detectados: Nenhum
-Anomalias comportamentais: Nenhuma
-
-Cena 9 – Personagem dominante: PERSON_35
-Duração aproximada: 19.0s
-Atividade predominante: SENTADO
-Variação postural observada: EM_PE
-Estado emocional predominante: Neutral
-Eventos relevantes detectados: Nenhum
-Anomalias comportamentais: Nenhuma
-
-Cena 10 – Personagem dominante: PERSON_49
-Duração aproximada: 6.0s
-Atividade predominante: SENTADO
-Estado emocional predominante: Neutral
-Eventos relevantes detectados: APERTO_DE_MAO (3)
-Anomalias comportamentais: Nenhuma
-
-Cena 11 – Personagem dominante: PERSON_52
-Duração aproximada: 20.9s
-Atividade predominante: SENTADO
-Estado emocional predominante: Neutral
-Eventos relevantes detectados: APERTO_DE_MAO (3)
-Anomalias comportamentais: Nenhuma
-
+Anomalias detectadas:
+  - Emoção: 59
+  - Movimento: 0
