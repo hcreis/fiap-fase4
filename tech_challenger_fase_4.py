@@ -102,13 +102,41 @@ EMOCOES = [
     "contempt",
 ]
 
+identidades_conhecidas = []  # [{nome, emb, frames, frames_sem_match}]
+contador_pessoas = 1
+historico_aceno = {}  # track_id -> list[x]
+DIST_MAO_PX = 50
+# Mantém histórico de velocidades por personagem dominante (ou por track se preferir)
+historico_movimento = defaultdict(lambda: deque(maxlen=JANELA_VELOCIDADE))
+# Para estimar velocidade, guardamos último ponto (punho direito e quadril) por "pessoa"
+ultimo_ponto = {}  # chave -> (x, y)
+
+# Para “compactar” eventos e evitar supercontagem frame-a-frame
+contador_aperto_mao = 0
+contador_aceno = 0
+
+# ======================================================
+# ESTATÍSTICAS GLOBAIS
+# ======================================================
+estatisticas = {
+    "frames": 0,
+    "atividades": Counter(),
+    "emocoes": Counter(),
+    "anomalias_emocao": 0,
+    "anomalias_movimento": 0,
+    "eventos": Counter(),
+}
+
+sequencia_emocao = defaultdict(int)
+
+
 def classificar_emocao_deepface(face_bgr):
     try:
         res = DeepFace.analyze(
             face_bgr,
             actions=["emotion"],
             enforce_detection=False,
-            detector_backend="skip"
+            detector_backend="skip",
         )
         return res[0]["dominant_emotion"]
     except Exception:
@@ -118,10 +146,6 @@ def classificar_emocao_deepface(face_bgr):
 # ======================================================
 # IDENTIDADES TEMPORAIS (sem imagens de referência)
 # ======================================================
-identidades_conhecidas = []  # [{nome, emb, frames, frames_sem_match}]
-contador_pessoas = 1
-
-
 def resolver_identidade(embedding):
     global contador_pessoas
 
@@ -180,15 +204,12 @@ def iniciar_insightface():
 # ======================================================
 # ATIVIDADES (POSE)
 # ======================================================
-historico_aceno = {}  # track_id -> list[x]
-
-
 def classificar_em_pe_ou_sentado(kps):
     if kps is None or kps.shape[0] < 16:
         return None
 
-    quadril = kps[11]   # hip
-    joelho = kps[13]   # knee
+    quadril = kps[11]  # hip
+    joelho = kps[13]  # knee
     tornozelo = kps[15]  # ankle
 
     # confiança mais rígida
@@ -205,10 +226,10 @@ def classificar_em_pe_ou_sentado(kps):
 
     # EM_PE rígido
     if (
-        dy_hk < -10 and               # quadril acima do joelho
-        dy_ka < -10 and               # joelho acima do tornozelo
-        abs(dy_ha) > 0.25 * abs(dy_ka) and  # perna estendida
-        abs(quadril[0] - tornozelo[0]) < 0.25 * abs(dy_ha)  # postura vertical
+        dy_hk < -10  # quadril acima do joelho
+        and dy_ka < -10  # joelho acima do tornozelo
+        and abs(dy_ha) > 0.25 * abs(dy_ka)  # perna estendida
+        and abs(quadril[0] - tornozelo[0]) < 0.25 * abs(dy_ha)  # postura vertical
     ):
         return "EM_PE"
 
@@ -248,8 +269,6 @@ def detectar_aceno(track_id, kps):
 # ======================================================
 # APERTO DE MÃO (MÃOS PRÓXIMAS – MEDIAPIPE HANDS)
 # ======================================================
-DIST_MAO_PX = 50
-
 def centro_mao(hand_landmarks, w, h):
     xs = [lm.x for lm in hand_landmarks.landmark]
     ys = [lm.y for lm in hand_landmarks.landmark]
@@ -269,7 +288,8 @@ def detectar_aperto_de_mao(centros_maos):
     for i in range(len(pontos)):
         for j in range(i + 1, len(pontos)):
             if (
-                10 < np.linalg.norm(np.array(pontos[i]) - np.array(pontos[j]))
+                10
+                < np.linalg.norm(np.array(pontos[i]) - np.array(pontos[j]))
                 < DISTANCIA_APERTO_MAO_PX
             ):
                 return True
@@ -280,12 +300,6 @@ def detectar_aperto_de_mao(centros_maos):
 # ======================================================
 # ANOMALIA DE MOVIMENTO (simples)
 # ======================================================
-# Mantém histórico de velocidades por personagem dominante (ou por track se preferir)
-historico_movimento = defaultdict(lambda: deque(maxlen=JANELA_VELOCIDADE))
-# Para estimar velocidade, guardamos último ponto (punho direito e quadril) por "pessoa"
-ultimo_ponto = {}  # chave -> (x, y)
-
-
 def registrar_movimento(chave, ponto_xy):
     """
     Atualiza velocidade instantânea com base na diferença entre frames.
@@ -356,30 +370,10 @@ def iniciar_cena(personagem):
     }
 
 
-# Para “compactar” eventos e evitar supercontagem frame-a-frame
-contador_aperto_mao = 0
-contador_aceno = 0
-
-# ======================================================
-# ESTATÍSTICAS GLOBAIS
-# ======================================================
-estatisticas = {
-    "frames": 0,
-    "atividades": Counter(),
-    "emocoes": Counter(),
-    "anomalias_emocao": 0,
-    "anomalias_movimento": 0,
-    "eventos": Counter(),
-}
-
-sequencia_emocao = defaultdict(int)
-
-
 # ======================================================
 # PROCESSAMENTO DO VÍDEO
 # ======================================================
 def processar_video(caminho_video, caminho_saida_video):
-
     global cena_atual, candidato_dominante, frames_candidato, frames_sem_dominante
     global contador_aperto_mao, contador_aceno
 
@@ -757,6 +751,7 @@ def escrever_relatorio_tecnico(caminho, fps=30):
         f.write(f"  - Emoção: {estatisticas['anomalias_emocao']}\n")
         f.write(f"  - Movimento: {estatisticas['anomalias_movimento']}\n")
 
+
 def gerar_grafico_emocoes(caminho_saida):
     if not estatisticas["emocoes"]:
         return
@@ -771,12 +766,7 @@ def gerar_grafico_emocoes(caminho_saida):
         sizes.append((count / total) * 100)
 
     plt.figure(figsize=(6, 6))
-    plt.pie(
-        sizes,
-        labels=labels,
-        autopct="%1.1f%%",
-        startangle=90
-    )
+    plt.pie(sizes, labels=labels, autopct="%1.1f%%", startangle=90)
     plt.title("Distribuição Global de Emoções")
     plt.axis("equal")
 
@@ -784,9 +774,11 @@ def gerar_grafico_emocoes(caminho_saida):
     plt.savefig(caminho_saida)
     plt.close()
 
+
 # ======================================================
 # MAIN
 # ======================================================
+
 
 def main():
     base_dir = os.path.dirname(os.path.abspath(__file__))
@@ -821,6 +813,7 @@ def main():
     print(f"- Vídeo anotado: {caminho_video_saida}")
     print(f"- Relatório técnico: {relatorio_tecnico}")
     print(f"- Gráfico de emoções: {grafico_path}")
+
 
 if __name__ == "__main__":
     main()
